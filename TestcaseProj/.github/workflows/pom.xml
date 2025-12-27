@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.houari</groupId>
+    <artifactId>iamneo-production-4_0cd17f73-4b87-4668-a011-120a927313ce-918f47ce-016b-42de-bf0e-a5507ee6d4be</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <properties>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+        <sonar.organization>iamneo-production-4</sonar.organization>
+        <sonar.host.url>https://sonar.server.examly.io</sonar.host.url>
+        <sonar.sources>reactapp/src</sonar.sources>
+        <sonar.java.binaries>target</sonar.java.binaries>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.7.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>3.7.0.1746</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>
