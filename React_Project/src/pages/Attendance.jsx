@@ -13,13 +13,38 @@ const Attendance = () => {
   } = useApp();
   const [selectedSession, setSelectedSession] = useState("");
   const [selectedTrainer, setSelectedTrainer] = useState("");
+  const [errors, setErrors] = useState({});
+  const [notification, setNotification] = useState(null);
+
+  const showNotification = (message, type = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   const handleCheckIn = () => {
-    if (!selectedSession || !selectedTrainer) return;
+    setErrors({});
+
+    if (!selectedSession) {
+      setErrors({ session: "Please select a session" });
+      showNotification("Please select a session", "error");
+      return;
+    }
+
+    if (!selectedTrainer) {
+      setErrors({ trainer: "Please select a trainer" });
+      showNotification("Please select a trainer", "error");
+      return;
+    }
+
     const existing = attendance.find(
       (a) => a.sessionId === selectedSession && a.trainerId === selectedTrainer
     );
-    if (existing?.checkInTime) return;
+
+    if (existing?.checkInTime) {
+      showNotification("Already checked in for this session", "error");
+      return;
+    }
+
     const session = getSessionById(selectedSession);
     dispatchAttendance({
       type: ATTENDANCE_ACTIONS.CHECK_IN,
@@ -31,16 +56,40 @@ const Attendance = () => {
         sessionEndTime: `${session.date}T${session.endTime}:00`,
       },
     });
+    showNotification("Checked in successfully!");
     setSelectedSession("");
     setSelectedTrainer("");
   };
 
   const handleCheckOut = () => {
-    if (!selectedSession || !selectedTrainer) return;
+    setErrors({});
+
+    if (!selectedSession) {
+      setErrors({ session: "Please select a session" });
+      showNotification("Please select a session", "error");
+      return;
+    }
+
+    if (!selectedTrainer) {
+      setErrors({ trainer: "Please select a trainer" });
+      showNotification("Please select a trainer", "error");
+      return;
+    }
+
     const existing = attendance.find(
       (a) => a.sessionId === selectedSession && a.trainerId === selectedTrainer
     );
-    if (!existing?.checkInTime || existing.checkOutTime) return;
+
+    if (!existing?.checkInTime) {
+      showNotification("Must check in before checking out", "error");
+      return;
+    }
+
+    if (existing.checkOutTime) {
+      showNotification("Already checked out for this session", "error");
+      return;
+    }
+
     dispatchAttendance({
       type: ATTENDANCE_ACTIONS.CHECK_OUT,
       payload: {
@@ -49,6 +98,7 @@ const Attendance = () => {
         timestamp: new Date().toISOString(),
       },
     });
+    showNotification("Checked out successfully!");
     setSelectedSession("");
     setSelectedTrainer("");
   };
@@ -67,20 +117,38 @@ const Attendance = () => {
     );
   };
 
-  const handleApprove = (id) =>
+  const handleApprove = (id) => {
     dispatchAttendance({
       type: ATTENDANCE_ACTIONS.APPROVE_ATTENDANCE,
       payload: id,
     });
-  const handleReject = (id) =>
-    window.confirm("Reject this record?") &&
-    dispatchAttendance({
-      type: ATTENDANCE_ACTIONS.REJECT_ATTENDANCE,
-      payload: id,
-    });
+    showNotification("Attendance approved!");
+  };
+
+  const handleReject = (id) => {
+    if (window.confirm("Reject this record?")) {
+      dispatchAttendance({
+        type: ATTENDANCE_ACTIONS.REJECT_ATTENDANCE,
+        payload: id,
+      });
+      showNotification("Attendance rejected!");
+    }
+  };
 
   return (
     <div className="space-y-4">
+      {notification && (
+        <div
+          className={`fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+            notification.type === "success"
+              ? "bg-green-500 text-white"
+              : "bg-red-500 text-white"
+          }`}
+        >
+          {notification.message}
+        </div>
+      )}
+
       <h1 className="text-3xl font-bold">Attendance</h1>
 
       <div className="card p-4">
@@ -90,8 +158,13 @@ const Attendance = () => {
             <label className="block text-sm font-medium mb-1">Session</label>
             <select
               value={selectedSession}
-              onChange={(e) => setSelectedSession(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
+              onChange={(e) => {
+                setSelectedSession(e.target.value);
+                if (errors.session) setErrors({ ...errors, session: "" });
+              }}
+              className={`w-full px-3 py-2 border rounded-lg ${
+                errors.session ? "border-red-500" : ""
+              }`}
             >
               <option value="">Select Session</option>
               {sessions.map((s) => (
@@ -105,8 +178,13 @@ const Attendance = () => {
             <label className="block text-sm font-medium mb-1">Trainer</label>
             <select
               value={selectedTrainer}
-              onChange={(e) => setSelectedTrainer(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
+              onChange={(e) => {
+                setSelectedTrainer(e.target.value);
+                if (errors.trainer) setErrors({ ...errors, trainer: "" });
+              }}
+              className={`w-full px-3 py-2 border rounded-lg ${
+                errors.trainer ? "border-red-500" : ""
+              }`}
             >
               <option value="">Select Trainer</option>
               {trainers.map((t) => (

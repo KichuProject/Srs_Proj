@@ -19,6 +19,9 @@ const Sessions = () => {
     endTime: "",
     trainerId: "",
   });
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   const resetForm = () => {
     setFormData({
@@ -29,6 +32,7 @@ const Sessions = () => {
       trainerId: "",
     });
     setEditingSession(null);
+    setErrors({});
   };
   const openAddModal = () => {
     resetForm();
@@ -40,50 +44,117 @@ const Sessions = () => {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (formData.startTime >= formData.endTime) return;
+  const validateForm = () => {
+    const newErrors = {};
 
-    const hasConflict = checkSessionConflict(
-      formData.trainerId,
-      formData.date,
-      formData.startTime,
-      formData.endTime,
-      editingSession?.id
-    );
-    if (hasConflict) return;
-
-    if (editingSession) {
-      dispatchSessions({
-        type: SESSION_ACTIONS.UPDATE_SESSION,
-        payload: {
-          ...formData,
-          id: editingSession.id,
-          status: editingSession.status,
-        },
-      });
-    } else {
-      const sessionDateTime = new Date(
-        `${formData.date}T${formData.startTime}`
-      );
-      const status = sessionDateTime > new Date() ? "upcoming" : "completed";
-      dispatchSessions({
-        type: SESSION_ACTIONS.ADD_SESSION,
-        payload: { ...formData, status },
-      });
+    if (!formData.name.trim()) {
+      newErrors.name = "Session name is required";
+    } else if (formData.name.trim().length < 3) {
+      newErrors.name = "Session name must be at least 3 characters";
     }
-    setIsModalOpen(false);
-    resetForm();
+
+    if (!formData.trainerId) {
+      newErrors.trainerId = "Trainer is required";
+    }
+
+    if (!formData.date) {
+      newErrors.date = "Date is required";
+    }
+
+    if (!formData.startTime) {
+      newErrors.startTime = "Start time is required";
+    }
+
+    if (!formData.endTime) {
+      newErrors.endTime = "End time is required";
+    }
+
+    if (formData.startTime && formData.endTime) {
+      if (formData.startTime >= formData.endTime) {
+        newErrors.endTime = "End time must be after start time";
+      }
+    }
+
+    if (
+      formData.trainerId &&
+      formData.date &&
+      formData.startTime &&
+      formData.endTime
+    ) {
+      const hasConflict = checkSessionConflict(
+        formData.trainerId,
+        formData.date,
+        formData.startTime,
+        formData.endTime,
+        editingSession?.id
+      );
+      if (hasConflict) {
+        newErrors.trainerId = "Trainer has a conflicting session at this time";
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const showNotification = (message, type = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      if (editingSession) {
+        dispatchSessions({
+          type: SESSION_ACTIONS.UPDATE_SESSION,
+          payload: {
+            ...formData,
+            id: editingSession.id,
+            status: editingSession.status,
+          },
+        });
+        showNotification("Session updated successfully!");
+      } else {
+        const sessionDateTime = new Date(
+          `${formData.date}T${formData.startTime}`
+        );
+        const status = sessionDateTime > new Date() ? "upcoming" : "completed";
+        dispatchSessions({
+          type: SESSION_ACTIONS.ADD_SESSION,
+          payload: { ...formData, status },
+        });
+        showNotification("Session scheduled successfully!");
+      }
+      setIsModalOpen(false);
+      resetForm();
+    } catch (error) {
+      showNotification("An error occurred. Please try again.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = (id) => {
     if (window.confirm("Delete this session?")) {
       dispatchSessions({ type: SESSION_ACTIONS.DELETE_SESSION, payload: id });
+      showNotification("Session deleted successfully!");
     }
   };
 
   const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: "" });
+    }
   };
 
   const sortedSessions = [...sessions].sort(
@@ -92,6 +163,18 @@ const Sessions = () => {
 
   return (
     <div className="space-y-4">
+      {notification && (
+        <div
+          className={`fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+            notification.type === "success"
+              ? "bg-green-500 text-white"
+              : "bg-red-500 text-white"
+          }`}
+        >
+          {notification.message}
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Sessions</h1>
         <button onClick={openAddModal} className="btn btn-primary">
@@ -190,9 +273,14 @@ const Sessions = () => {
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      errors.name ? "border-red-500" : ""
+                    }`}
+                    disabled={isSubmitting}
                   />
+                  {errors.name && (
+                    <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -200,11 +288,16 @@ const Sessions = () => {
                   </label>
                   <select
                     value={formData.trainerId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, trainerId: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
+                    onChange={(e) => {
+                      setFormData({ ...formData, trainerId: e.target.value });
+                      if (errors.trainerId) {
+                        setErrors({ ...errors, trainerId: "" });
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      errors.trainerId ? "border-red-500" : ""
+                    }`}
+                    disabled={isSubmitting}
                   >
                     <option value="">Select trainer...</option>
                     {trainers.map((t) => (
@@ -213,6 +306,11 @@ const Sessions = () => {
                       </option>
                     ))}
                   </select>
+                  {errors.trainerId && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.trainerId}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Date</label>
@@ -221,9 +319,14 @@ const Sessions = () => {
                     name="date"
                     value={formData.date}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      errors.date ? "border-red-500" : ""
+                    }`}
+                    disabled={isSubmitting}
                   />
+                  {errors.date && (
+                    <p className="text-red-500 text-xs mt-1">{errors.date}</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -235,9 +338,16 @@ const Sessions = () => {
                       name="startTime"
                       value={formData.startTime}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border rounded-lg"
-                      required
+                      className={`w-full px-3 py-2 border rounded-lg ${
+                        errors.startTime ? "border-red-500" : ""
+                      }`}
+                      disabled={isSubmitting}
                     />
+                    {errors.startTime && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.startTime}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">
@@ -248,9 +358,16 @@ const Sessions = () => {
                       name="endTime"
                       value={formData.endTime}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border rounded-lg"
-                      required
+                      className={`w-full px-3 py-2 border rounded-lg ${
+                        errors.endTime ? "border-red-500" : ""
+                      }`}
+                      disabled={isSubmitting}
                     />
+                    {errors.endTime && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.endTime}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">
@@ -261,11 +378,20 @@ const Sessions = () => {
                       setIsModalOpen(false);
                       resetForm();
                     }}
+                    disabled={isSubmitting}
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary flex-1">
-                    {editingSession ? "Update" : "Schedule"}
+                  <button
+                    type="submit"
+                    className="btn btn-primary flex-1"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting
+                      ? "Saving..."
+                      : editingSession
+                      ? "Update"
+                      : "Schedule"}
                   </button>
                 </div>
               </form>

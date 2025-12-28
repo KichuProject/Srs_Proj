@@ -13,10 +13,14 @@ const Trainers = () => {
     phone: "",
     skill: "",
   });
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   const resetForm = () => {
     setFormData({ name: "", employeeId: "", email: "", phone: "", skill: "" });
     setEditingTrainer(null);
+    setErrors({});
   };
 
   const openAddModal = () => {
@@ -29,31 +33,97 @@ const Trainers = () => {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (editingTrainer) {
-      dispatchTrainers({
-        type: TRAINER_ACTIONS.UPDATE_TRAINER,
-        payload: { ...formData, id: editingTrainer.id },
-      });
-    } else {
-      dispatchTrainers({
-        type: TRAINER_ACTIONS.ADD_TRAINER,
-        payload: formData,
-      });
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Name is required";
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = "Name must be at least 2 characters";
     }
-    setIsModalOpen(false);
-    resetForm();
+
+    if (!formData.employeeId.trim()) {
+      newErrors.employeeId = "Employee ID is required";
+    } else {
+      const isDuplicate = trainers.some(
+        (t) =>
+          t.employeeId === formData.employeeId && t.id !== editingTrainer?.id
+      );
+      if (isDuplicate) {
+        newErrors.employeeId = "Employee ID already exists";
+      }
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Invalid email format";
+    }
+
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone is required";
+    } else if (!/^\d{10}$/.test(formData.phone.replace(/[-\s]/g, ""))) {
+      newErrors.phone = "Phone must be 10 digits";
+    }
+
+    if (!formData.skill.trim()) {
+      newErrors.skill = "Skill is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const showNotification = (message, type = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      if (editingTrainer) {
+        dispatchTrainers({
+          type: TRAINER_ACTIONS.UPDATE_TRAINER,
+          payload: { ...formData, id: editingTrainer.id },
+        });
+        showNotification("Trainer updated successfully!");
+      } else {
+        dispatchTrainers({
+          type: TRAINER_ACTIONS.ADD_TRAINER,
+          payload: formData,
+        });
+        showNotification("Trainer added successfully!");
+      }
+      setIsModalOpen(false);
+      resetForm();
+    } catch (error) {
+      showNotification("An error occurred. Please try again.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = (id) => {
     if (window.confirm("Delete this trainer?")) {
       dispatchTrainers({ type: TRAINER_ACTIONS.DELETE_TRAINER, payload: id });
+      showNotification("Trainer deleted successfully!");
     }
   };
 
   const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: "" });
+    }
   };
 
   const getTrainerSessions = (id) =>
@@ -64,6 +134,18 @@ const Trainers = () => {
 
   return (
     <div className="space-y-4">
+      {notification && (
+        <div
+          className={`fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+            notification.type === "success"
+              ? "bg-green-500 text-white"
+              : "bg-red-500 text-white"
+          }`}
+        >
+          {notification.message}
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Trainers</h1>
         <button onClick={openAddModal} className="btn btn-primary">
@@ -148,9 +230,14 @@ const Trainers = () => {
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      errors.name ? "border-red-500" : ""
+                    }`}
+                    disabled={isSubmitting}
                   />
+                  {errors.name && (
+                    <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -161,9 +248,16 @@ const Trainers = () => {
                     name="employeeId"
                     value={formData.employeeId}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      errors.employeeId ? "border-red-500" : ""
+                    }`}
+                    disabled={isSubmitting}
                   />
+                  {errors.employeeId && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.employeeId}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -174,9 +268,14 @@ const Trainers = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      errors.email ? "border-red-500" : ""
+                    }`}
+                    disabled={isSubmitting}
                   />
+                  {errors.email && (
+                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -187,9 +286,14 @@ const Trainers = () => {
                     name="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      errors.phone ? "border-red-500" : ""
+                    }`}
+                    disabled={isSubmitting}
                   />
+                  {errors.phone && (
+                    <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -200,10 +304,15 @@ const Trainers = () => {
                     name="skill"
                     value={formData.skill}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      errors.skill ? "border-red-500" : ""
+                    }`}
                     placeholder="e.g., React & JavaScript"
-                    required
+                    disabled={isSubmitting}
                   />
+                  {errors.skill && (
+                    <p className="text-red-500 text-xs mt-1">{errors.skill}</p>
+                  )}
                 </div>
                 <div className="flex gap-2 pt-2">
                   <button
@@ -213,11 +322,20 @@ const Trainers = () => {
                       setIsModalOpen(false);
                       resetForm();
                     }}
+                    disabled={isSubmitting}
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary flex-1">
-                    {editingTrainer ? "Update" : "Add"}
+                  <button
+                    type="submit"
+                    className="btn btn-primary flex-1"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting
+                      ? "Saving..."
+                      : editingTrainer
+                      ? "Update"
+                      : "Add"}
                   </button>
                 </div>
               </form>
